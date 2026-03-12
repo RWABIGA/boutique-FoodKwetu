@@ -1,10 +1,11 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { products as hardcodedProducts } from '@/data/products'
 import type { Order, OrderStatus } from '@/types'
 import {
   RefreshCw, LogOut, Package, CheckCircle, Truck, XCircle, Clock,
-  Users, ShoppingBag, Download, Edit2, Save, X, Plus, Eye, EyeOff,
+  Users, ShoppingBag, Download, Edit2, Save, X, Eye, EyeOff, Upload,
 } from 'lucide-react'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -75,6 +76,7 @@ export default function AdminPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [editForm, setEditForm] = useState<Partial<Product>>({})
   const [savingProduct, setSavingProduct] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
   // ── Auth ────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -117,9 +119,38 @@ export default function AdminPage() {
   const fetchProducts = useCallback(async () => {
     setProductsLoading(true)
     const { data, error } = await supabase.from('products').select('*').order('category')
-    if (!error && data) setProducts(data as Product[])
+    if (!error && data && data.length > 0) {
+      setProducts(data as Product[])
+    } else {
+      // Fall back to hardcoded products if Supabase table is empty
+      setProducts(hardcodedProducts.map(p => ({
+        id: p.id, name: p.name, category: p.category,
+        price: p.price, price_label: p.priceLabel,
+        unit: p.unit, unit_label: p.unitLabel,
+        origin: p.origin, emoji: p.emoji,
+        min_qty: p.minQty, step: p.step,
+        description: p.description ?? '',
+        available: true,
+      })))
+    }
     setProductsLoading(false)
   }, [])
+
+  async function syncToSupabase() {
+    setSyncing(true)
+    const rows = hardcodedProducts.map(p => ({
+      id: p.id, name: p.name, category: p.category,
+      price: p.price, price_label: p.priceLabel,
+      unit: p.unit, unit_label: p.unitLabel,
+      origin: p.origin, emoji: p.emoji,
+      min_qty: p.minQty, step: p.step,
+      description: p.description ?? '',
+      available: true,
+    }))
+    await supabase.from('products').upsert(rows, { onConflict: 'id' })
+    await fetchProducts()
+    setSyncing(false)
+  }
 
   useEffect(() => { if (authed) fetchProducts() }, [authed, fetchProducts])
 
@@ -413,92 +444,128 @@ export default function AdminPage() {
         {/* ── PRODUCTS TAB ── */}
         {tab === 'products' && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
               <h2 className="font-heading font-semibold text-gray-900">
                 Produits <span className="text-gray-400 font-normal text-sm">({products.length})</span>
               </h2>
-              <button onClick={fetchProducts} className="p-2 rounded-xl hover:bg-gray-100 transition-colors">
-                <RefreshCw size={15} className={productsLoading ? 'animate-spin' : ''} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={syncToSupabase} disabled={syncing}
+                  className="flex items-center gap-1.5 bg-primary-900 text-white text-xs font-medium px-3 py-2 rounded-xl hover:bg-primary-800 transition-colors disabled:opacity-50">
+                  <Upload size={13} /> {syncing ? 'Sync...' : 'Sync Supabase'}
+                </button>
+                <button onClick={fetchProducts} className="p-2 rounded-xl hover:bg-gray-100 transition-colors">
+                  <RefreshCw size={15} className={productsLoading ? 'animate-spin' : ''} />
+                </button>
+              </div>
             </div>
+
             {productsLoading ? (
               <div className="text-center py-16 text-gray-400">
                 <RefreshCw size={24} className="animate-spin mx-auto mb-3" />
                 <p className="text-sm">Chargement...</p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-50">
-                {products.map(p => (
-                  <div key={p.id} className={`px-6 py-4 ${!p.available ? 'opacity-50' : ''}`}>
-                    {editingProduct?.id === p.id ? (
-                      // Edit form
-                      <div className="space-y-3">
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                          <div>
-                            <label className="text-xs text-gray-500 mb-1 block">Nom</label>
-                            <input value={editForm.name ?? ''} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
-                              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-700" />
-                          </div>
-                          <div>
-                            <label className="text-xs text-gray-500 mb-1 block">Prix (€)</label>
-                            <input type="number" step="0.01" value={editForm.price ?? ''} onChange={e => setEditForm(f => ({ ...f, price: parseFloat(e.target.value) }))}
-                              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-700" />
-                          </div>
-                          <div>
-                            <label className="text-xs text-gray-500 mb-1 block">Libellé prix</label>
-                            <input value={editForm.price_label ?? ''} onChange={e => setEditForm(f => ({ ...f, price_label: e.target.value }))}
-                              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-700" />
-                          </div>
-                          <div>
-                            <label className="text-xs text-gray-500 mb-1 block">Catégorie</label>
-                            <input value={editForm.category ?? ''} onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}
-                              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-700" />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-500 mb-1 block">Description</label>
-                          <input value={editForm.description ?? ''} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
-                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-700" />
-                        </div>
-                        <div className="flex gap-2">
-                          <button onClick={saveProduct} disabled={savingProduct}
-                            className="flex items-center gap-1.5 bg-primary-900 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-primary-800 transition-colors disabled:opacity-50">
-                            <Save size={14} /> {savingProduct ? 'Sauvegarde...' : 'Sauvegarder'}
-                          </button>
-                          <button onClick={cancelEdit}
-                            className="flex items-center gap-1.5 bg-gray-100 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors">
-                            <X size={14} /> Annuler
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      // Display row
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <span className="text-2xl">{p.emoji}</span>
-                          <div className="min-w-0">
-                            <p className="font-semibold text-gray-900 text-sm">{p.name}</p>
-                            <p className="text-xs text-gray-500">{p.category} · {p.origin}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3 flex-shrink-0">
-                          <span className="font-heading font-bold text-primary-900 text-sm whitespace-nowrap">
-                            {p.price.toFixed(2).replace('.', ',')} €
-                          </span>
-                          <span className="text-xs text-gray-400 hidden sm:inline">{p.unit_label}</span>
-                          <button onClick={() => toggleAvailable(p)} title={p.available ? 'Masquer' : 'Afficher'}
-                            className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-400">
-                            {p.available ? <Eye size={15} /> : <EyeOff size={15} />}
-                          </button>
-                          <button onClick={() => startEdit(p)} title="Modifier"
-                            className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-400">
-                            <Edit2 size={15} />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 text-left">
+                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">#</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Produit</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Catégorie</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Prix</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Unité</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Origine</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Statut</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {products.map((p, i) => (
+                      <tr key={p.id} className={`hover:bg-gray-50 transition-colors ${!p.available ? 'opacity-40' : ''}`}>
+                        {editingProduct?.id === p.id ? (
+                          <td colSpan={8} className="px-4 py-4">
+                            <div className="space-y-3">
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <div>
+                                  <label className="text-xs text-gray-500 mb-1 block">Nom</label>
+                                  <input value={editForm.name ?? ''} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-700" />
+                                </div>
+                                <div>
+                                  <label className="text-xs text-gray-500 mb-1 block">Prix (€)</label>
+                                  <input type="number" step="0.01" value={editForm.price ?? ''} onChange={e => setEditForm(f => ({ ...f, price: parseFloat(e.target.value) }))}
+                                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-700" />
+                                </div>
+                                <div>
+                                  <label className="text-xs text-gray-500 mb-1 block">Libellé prix</label>
+                                  <input value={editForm.price_label ?? ''} onChange={e => setEditForm(f => ({ ...f, price_label: e.target.value }))}
+                                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-700" />
+                                </div>
+                                <div>
+                                  <label className="text-xs text-gray-500 mb-1 block">Catégorie</label>
+                                  <input value={editForm.category ?? ''} onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}
+                                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-700" />
+                                </div>
+                              </div>
+                              <div>
+                                <label className="text-xs text-gray-500 mb-1 block">Description</label>
+                                <input value={editForm.description ?? ''} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-700" />
+                              </div>
+                              <div className="flex gap-2">
+                                <button onClick={saveProduct} disabled={savingProduct}
+                                  className="flex items-center gap-1.5 bg-primary-900 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-primary-800 transition-colors disabled:opacity-50">
+                                  <Save size={14} /> {savingProduct ? 'Sauvegarde...' : 'Sauvegarder'}
+                                </button>
+                                <button onClick={cancelEdit}
+                                  className="flex items-center gap-1.5 bg-gray-100 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors">
+                                  <X size={14} /> Annuler
+                                </button>
+                              </div>
+                            </div>
+                          </td>
+                        ) : (
+                          <>
+                            <td className="px-4 py-3 text-gray-400 text-xs">{i + 1}</td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xl">{p.emoji}</span>
+                                <span className="font-semibold text-gray-900">{p.name}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="inline-block bg-gray-100 text-gray-600 text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap">
+                                {p.category}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 font-heading font-bold text-primary-900 whitespace-nowrap">
+                              {Number(p.price).toFixed(2).replace('.', ',')} €
+                            </td>
+                            <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{p.unit_label}</td>
+                            <td className="px-4 py-3 text-lg">{p.origin}</td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${p.available ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                {p.available ? '● Actif' : '○ Masqué'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-1">
+                                <button onClick={() => toggleAvailable(p)} title={p.available ? 'Masquer' : 'Afficher'}
+                                  className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-400">
+                                  {p.available ? <EyeOff size={14} /> : <Eye size={14} />}
+                                </button>
+                                <button onClick={() => startEdit(p)} title="Modifier"
+                                  className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-400">
+                                  <Edit2 size={14} />
+                                </button>
+                              </div>
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
