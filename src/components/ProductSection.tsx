@@ -1,7 +1,8 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ShoppingCart, SlidersHorizontal } from 'lucide-react'
-import { products, categories, categoryIcons } from '@/data/products'
+import { categoryIcons } from '@/data/products'
+import { supabase } from '@/lib/supabase'
 import { useCartStore } from '@/store/cartStore'
 import ProductCard from './ProductCard'
 import ProductModal from './ProductModal'
@@ -12,11 +13,29 @@ export default function ProductSection() {
   const [activeCategory,  setActiveCategory]  = useState('Tous')
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [checkoutOpen,    setCheckoutOpen]    = useState(false)
+  const [products,        setProducts]        = useState<Product[]>([])
+  const [loading,         setLoading]         = useState(true)
 
   const addItem    = useCartStore((s) => s.addItem)
   const items      = useCartStore((s) => s.items)
   const totalItems = items.reduce((s, i) => s + i.quantity, 0)
   const totalPrice = useCartStore((s) => s.totalPrice)
+
+  useEffect(() => {
+    supabase.from('products').select('*').eq('available', true).order('category')
+      .then(({ data }) => {
+        if (data) setProducts(data.map(p => ({
+          id: p.id, name: p.name, category: p.category,
+          price: p.price, priceLabel: p.price_label,
+          unit: p.unit, unitLabel: p.unit_label,
+          origin: p.origin, emoji: p.emoji,
+          minQty: p.min_qty, step: p.step, description: p.description,
+        })))
+        setLoading(false)
+      })
+  }, [])
+
+  const categories = ['Tous', ...Array.from(new Set(products.map(p => p.category)))]
 
   const filtered =
     activeCategory === 'Tous'
@@ -40,7 +59,7 @@ export default function ProductSection() {
             Nos <span className="text-river-500">Produits</span>
           </h2>
           <p className="text-gray-400 mt-2 text-sm sm:text-base">
-            {products.length} produits authentiques d&apos;Afrique de l&apos;Est
+            {loading ? 'Chargement...' : `${products.length} produits authentiques d'Afrique de l'Est`}
           </p>
         </div>
 
@@ -63,15 +82,19 @@ export default function ProductSection() {
         </div>
 
         {/* Products grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-          {filtered.map((product) => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              onClick={setSelectedProduct}
-            />
-          ))}
-        </div>
+        {loading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-2xl h-48 animate-pulse" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+            {filtered.map((product) => (
+              <ProductCard key={product.id} product={product} onClick={setSelectedProduct} />
+            ))}
+          </div>
+        )}
 
         {/* Checkout sticky bar */}
         {totalItems > 0 && (
