@@ -1,0 +1,109 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Brand font: Karla (from brand guidelines) ── */
+@import url('https://fonts.googleapis.com/css2?family=Karla:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap');
+
+:root {
+  --font-karla:   'Karla', sans-serif;
+  --color-forest: #1B4D3B;
+  --color-river:  #67B8BC;
+  --color-mint:   #40B9AC;
+  --color-pale:   #63F8B5;
+  --color-cream:  #F5F7F5;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-karla);
+  background-color: var(--color-cream);
+  color: #1a1a1a;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-karla);
+  letter-spacing: -0.03em;
+}
+
+p, span, a, button, input, textarea {
+  font-family: var(--font-karla);
+  line-height: 1.7;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar        { width: 5px; }
+::-webkit-scrollbar-track  { background: #eaf4f0; }
+::-webkit-scrollbar-thumb  { background: #1B4D3B; border-radius: 3px; }
+
+/* Backdrop blur for modals */
+.modal-backdrop {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Product card hover — layered tinted shadows */
+.product-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.product-card:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    0 2px 4px rgba(27,77,59,0.06),
+    0 8px 24px rgba(27,77,59,0.12),
+    0 16px 40px rgba(103,184,188,0.08);
+}
+
+/* Cart badge pulse */
+@keyframes pulse-badge {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.25); }
+}
+.badge-pulse { animation: pulse-badge 0.4s ease-out; }
+
+/* Float +1 */
+@keyframes floatUp {
+  0%   { opacity: 1; transform: translateY(0) scale(1.2); }
+  80%  { opacity: 0.6; }
+  100% { opacity: 0; transform: translateY(-36px) scale(0.8); }
+}
+.animate-float-up { animation: floatUp 0.7s ease-out forwards; }
+
+/* Fade in */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.animate-fade-in { animation: fadeIn 0.3s ease-out; }
+
+/* Scale in */
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.animate-scale-in { animation: scaleIn 0.25s ease-out; }
+
+/* Bounce cart */
+@keyframes bounceCart {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.4); }
+  65%  { transform: scale(0.88); }
+  100% { transform: scale(1); }
+}
+.animate-bounce-cart { animation: bounceCart 0.5s ease-out; }
+
+/* Slide up */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up { animation: slideUp 0.4s ease-out; }
+
+/* Hide horizontal scrollbar for category tabs */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
